@@ -1,5 +1,3 @@
-# Stepifi
-
 <p align="center">
   <img src="logo.png" alt="Stepifi Logo" width="900">
 </p>
