@@ -34,7 +34,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 RUN micromamba install -y -n base -c conda-forge freecad=0.21.2 \
     && micromamba clean --all --yes
 
-# Required for FreeCAD
 ENV PATH="/opt/conda/bin:$PATH"
 ENV QT_QPA_PLATFORM=offscreen
 ENV FREECAD_USER_HOME=/tmp
@@ -42,11 +41,9 @@ ENV FREECAD_USER_HOME=/tmp
 # Copy node_modules from builder
 COPY --from=builder /build/node_modules ./node_modules
 
-# Copy backend
+# Copy backend and frontend
 COPY src ./src
 COPY package.json .
-
-# Copy frontend
 COPY public ./public
 COPY logo.png .
 COPY README.md .
@@ -58,4 +55,5 @@ RUN mkdir -p uploads converted logs /tmp/runtime \
 
 EXPOSE 3000 3001
 
-CMD ["micromambarun", "-n", "base", "node", "src/server.js"]
+# FIXED CMD — MUST BE EXACTLY THIS
+CMD ["micromamba", "run", "-n", "base", "node", "src/server.js"]
