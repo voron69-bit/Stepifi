@@ -18,19 +18,48 @@ const conversionRoutes = require('./routes/conversion.routes');
 
 const app = express();
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com", "fonts.googleapis.com"],
-      fontSrc: ["'self'", "fonts.gstatic.com", "cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+
+        // Allow local scripts + required CDNs
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "cdnjs.cloudflare.com",
+          "cdn.jsdelivr.net",
+        ],
+
+        // Allow local styles + Google Fonts + CDN styles
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "cdnjs.cloudflare.com",
+          "fonts.googleapis.com",
+        ],
+
+        // Allow required font sources
+        fontSrc: [
+          "'self'",
+          "fonts.gstatic.com",
+          "cdnjs.cloudflare.com"
+        ],
+
+        imgSrc: ["'self'", "data:", "blob:"],
+
+        // API calls
+        connectSrc: ["'self'"],
+
+        // Allow loading WASM or workers if needed later
+        workerSrc: ["'self'", "blob:"],
+      },
     },
-  },
-}));
+  })
+);
+
 
 app.use(cors());
 app.use(express.json());
