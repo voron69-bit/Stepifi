@@ -92,7 +92,7 @@ def repair_mesh(mesh):
         if not mesh.hasSelfIntersections():
             repairs.append("Fixed self-intersections")
 
-    mesh.fixDegenerations()
+    mesh.fixDegenerations(0.0, True)
     repairs.append("Fixed degenerations")
 
     if mesh.hasNonManifolds():
