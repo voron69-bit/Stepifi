@@ -80,6 +80,12 @@ body {
   color: var(--text-primary);
 }
 
+.logo-img {
+  height: 60px;
+  width: auto;
+  display: block;
+}
+
 .logo i {
   color: var(--accent-primary);
   font-size: 1.5rem;
