@@ -16,8 +16,7 @@
     <header class="header">
       <div class="header-content">
         <div class="logo">
-          <i class="fas fa-cube"></i>
-          <span>STL → STEP</span>
+          <img src="/logo.png" alt="STL to STEP Converter" class="logo-img">
         </div>
         <div class="header-actions">
           <button id="healthBtn" class="btn btn-ghost" title="Check System Health">
@@ -106,15 +105,9 @@
         </div>
       </section>
 
-      <!-- Jobs Section -->
-      <section id="jobsSection" class="jobs-section">
-        <h3><i class="fas fa-tasks"></i> Conversion Jobs</h3>
-        <div id="jobsList" class="jobs-list">
-          <div class="empty-state">
-            <i class="fas fa-inbox"></i>
-            <p>No active conversions</p>
-          </div>
-        </div>
+      <!-- Jobs Section - Hidden, no history -->
+      <section id="jobsSection" class="jobs-section" style="display: none;">
+        <div id="jobsList" class="jobs-list"></div>
       </section>
     </main>
 
