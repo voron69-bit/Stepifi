@@ -37,10 +37,7 @@ class ConverterService {
     }
 
     return new Promise((resolve) => {
-      // 🔥 FIXED: correct FreeCAD CLI call
-      //
-      // freecadcmd -c convert.py -- input.stl output.stp --tolerance 0.01 --repair
-      //
+
       const args = [
         "-c",
         this.pythonScript,
