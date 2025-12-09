@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+      - "${BULL_BOARD_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORT=3000
+      - BULL_BOARD_PORT=3001
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-104857600}
+      - JOB_TTL_HOURS=${JOB_TTL_HOURS:-24}
+      - CLEANUP_CRON=${CLEANUP_CRON:-*/15 * * * *}
+      - DEFAULT_TOLERANCE=${DEFAULT_TOLERANCE:-0.01}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-20}
+    volumes:
+      - uploads:/app/uploads
+      - converted:/app/converted
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  uploads:
+  converted:
+  redis_data:

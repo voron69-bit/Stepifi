@@ -1,0 +1,45 @@
+{
+  "name": "Stepifi",
+  "version": "2.0.0",
+  "description": "Self-hosted STL to STEP converter with mesh repair, 3D preview, and batch processing",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": [
+    "stl",
+    "step",
+    "cad",
+    "converter",
+    "3d-printing",
+    "freecad"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "bullmq": "^5.1.0",
+    "ioredis": "^5.3.2",
+    "@bull-board/express": "^5.10.0",
+    "@bull-board/api": "^5.10.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "winston": "^3.11.0",
+    "express-validator": "^7.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
