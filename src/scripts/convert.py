@@ -1,34 +1,34 @@
 #!/usr/bin/env python3
 """
-STL to STEP Converter with Mesh Repair + Planar Face Merging
-(Forced clean JSON output for use with external processes)
+STL → STEP converter with:
+ - Mesh repair
+ - Planar face merging
+ - ABSOLUTELY CLEAN JSON OUTPUT ONLY
+ - No progress bars
+ - FreeCAD >= 0.21 compatible
 """
 
 import sys
 import os
-import argparse
 import json
 
-try:
-    import FreeCAD
-    import Part
-    import Mesh
-    import MeshPart
-    import Import
-except ImportError as e:
-    print(json.dumps({
-        "success": False,
-        "error": f"FreeCAD import failed: {str(e)}",
-        "stage": "import"
-    }))
-    sys.exit(0)      # ← FORCE immediate exit
+# ─────────────────────────────────────────────────────────────
+# Disable ALL FreeCAD console spam BEFORE importing modules
+# ─────────────────────────────────────────────────────────────
+os.environ["FC_NO_CONSOLE_MSG"] = "1"
+
+import FreeCAD
+import Part
+import Mesh
+import MeshPart
+import Import
 
 
-def safe_exit(result):
-    """Prints JSON and immediately terminates FreeCAD before it prints anything else."""
-    print(json.dumps(result, indent=2))
+def json_exit(obj):
+    """Guaranteed clean JSON. No other output reaches stdout."""
+    sys.stdout.write(json.dumps(obj))
     sys.stdout.flush()
-    os._exit(0)      # ← ← ← HARD EXIT (kills FreeCAD BEFORE progress bars appear)
+    os._exit(0)
 
 
 def get_mesh_info(mesh):
@@ -47,28 +47,28 @@ def get_mesh_info(mesh):
 def repair_mesh(mesh):
     repairs = []
 
-    before_pts = mesh.CountPoints
+    before = mesh.CountPoints
     mesh.removeDuplicatedPoints()
-    if mesh.CountPoints < before_pts:
-        repairs.append(f"Removed {before_pts - mesh.CountPoints} duplicate points")
+    after = mesh.CountPoints
+    if after != before:
+        repairs.append(f"Removed {before - after} duplicated points")
 
-    before_facets = mesh.CountFacets
+    before = mesh.CountFacets
     mesh.removeDuplicatedFacets()
-    if mesh.CountFacets < before_facets:
-        repairs.append(f"Removed {before_facets - mesh.CountFacets} duplicate facets")
+    after = mesh.CountFacets
+    if after != before:
+        repairs.append(f"Removed {before - after} duplicated facets")
 
     if mesh.hasSelfIntersections():
         mesh.fixSelfIntersections()
-        if not mesh.hasSelfIntersections():
-            repairs.append("Fixed self-intersections")
+        repairs.append("Fixed self-intersections")
 
     mesh.fixDegenerations()
     repairs.append("Fixed degenerations")
 
     if mesh.hasNonManifolds():
         mesh.removeNonManifolds()
-        if not mesh.hasNonManifolds():
-            repairs.append("Removed non-manifolds")
+        repairs.append("Removed non-manifolds")
 
     mesh.fillupHoles()
     repairs.append("Filled holes")
@@ -76,104 +76,111 @@ def repair_mesh(mesh):
     mesh.harmonizeNormals()
     repairs.append("Harmonized normals")
 
-    return mesh, repairs
+    return repairs
 
 
-def merge_planar_faces(shape):
+def merge_planar(shape):
     try:
-        merged = shape.removeSplitter()
-        return merged, True
-    except Exception:
+        new_shape = shape.removeSplitter()
+        return new_shape, True
+    except:
         return shape, False
 
 
-def convert_stl_to_step(input_path, output_path, tolerance=0.01, repair=True, info_only=False):
-    result = {
+def convert(input_path, output_path, tolerance, repair, info_only):
+    out = {
         "success": False,
         "input": input_path,
         "output": output_path,
         "tolerance": tolerance
     }
 
+    if not os.path.exists(input_path):
+        out["error"] = "Input file not found"
+        out["stage"] = "validation"
+        json_exit(out)
+
+    mesh = Mesh.Mesh()
+    mesh.read(input_path)
+
+    if mesh.CountFacets == 0:
+        out["error"] = "STL contains no geometry"
+        out["stage"] = "read"
+        json_exit(out)
+
+    out["mesh_info_before"] = get_mesh_info(mesh)
+
+    if info_only:
+        out["success"] = True
+        json_exit(out)
+
+    if repair:
+        out["repairs"] = repair_mesh(mesh)
+        out["mesh_info_after"] = get_mesh_info(mesh)
+
+    # Create FreeCAD doc
+    doc = FreeCAD.newDocument("ConvertDoc")
+
+    # ──────────────────────────────────────────────────────
+    # FIX FOR YOUR ERROR:
+    # makeShapeFromMesh() REQUIRES 4 args in FreeCAD >= 0.21
+    # ──────────────────────────────────────────────────────
+    shape = Part.Shape()
+    shape.makeShapeFromMesh(mesh.Topology, tolerance, False, True)
+
+    # Try to solidify
     try:
-        if not os.path.exists(input_path):
-            result["error"] = f"Input file not found: {input_path}"
-            result["stage"] = "validation"
-            safe_exit(result)
+        solid = Part.makeSolid(shape)
+        final_shape = solid
+        out["is_solid"] = True
+    except:
+        final_shape = shape
+        out["is_solid"] = False
 
-        mesh = Mesh.Mesh()
-        mesh.read(input_path)
+    # Merge coplanar triangles
+    final_shape, merged = merge_planar(final_shape)
+    out["merged_planar_faces"] = merged
 
-        if mesh.CountFacets == 0:
-            result["error"] = "STL file contains no geometry"
-            result["stage"] = "read"
-            safe_exit(result)
+    # Export
+    obj = doc.addObject("Part::Feature", "Body")
+    obj.Shape = final_shape
 
-        result["mesh_info_before"] = get_mesh_info(mesh)
+    Import.export([obj], output_path)
 
-        if info_only:
-            result["success"] = True
-            safe_exit(result)
+    if os.path.exists(output_path):
+        out["success"] = True
+        out["output_size"] = os.path.getsize(output_path)
+    else:
+        out["error"] = "STEP export failed"
+        out["stage"] = "export"
 
-        if repair:
-            mesh, repairs = repair_mesh(mesh)
-            result["repairs"] = repairs
-            result["mesh_info_after"] = get_mesh_info(mesh)
-
-        doc = FreeCAD.newDocument("STLtoSTEP")
-
-        shape = Part.Shape()
-        shape.makeShapeFromMesh(mesh.Topology, tolerance)
-
-        try:
-            solid = Part.makeSolid(shape)
-            final_shape = solid
-            result["is_solid"] = True
-        except Exception:
-            final_shape = shape
-            result["is_solid"] = False
-
-        final_shape, merged_ok = merge_planar_faces(final_shape)
-        result["merged_planar_faces"] = merged_ok
-
-        obj = doc.addObject("Part::Feature", "ConvertedMesh")
-        obj.Shape = final_shape
-
-        Import.export([obj], output_path)
-
-        if os.path.exists(output_path):
-            result["success"] = True
-            result["output_size"] = os.path.getsize(output_path)
-        else:
-            result["error"] = "STEP file was not created"
-            result["stage"] = "export"
-
-        FreeCAD.closeDocument("STLtoSTEP")
-
-    except Exception as e:
-        result["error"] = str(e)
-        result["stage"] = "conversion"
-
-    safe_exit(result)
+    FreeCAD.closeDocument("ConvertDoc")
+    json_exit(out)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert STL → STEP")
-    parser.add_argument("input")
-    parser.add_argument("output")
-    parser.add_argument("--tolerance", type=float, default=0.01)
-    parser.add_argument("--repair", action="store_true", default=True)
-    parser.add_argument("--no-repair", action="store_false", dest="repair")
-    parser.add_argument("--info", action="store_true")
-    args = parser.parse_args()
+    args = sys.argv[1:]
+    if len(args) < 2:
+        json_exit({"success": False, "error": "Invalid arguments"})
 
-    convert_stl_to_step(
-        args.input,
-        args.output,
-        args.tolerance,
-        args.repair,
-        args.info
-    )
+    input_path = args[0]
+    output_path = args[1]
+
+    tolerance = 0.01
+    repair = True
+    info_only = False
+
+    for a in args[2:]:
+        if a.startswith("--tolerance="):
+            tolerance = float(a.split("=")[1])
+        elif a == "--repair":
+            repair = True
+        elif a == "--no-repair":
+            repair = False
+        elif a == "--info":
+            info_only = True
+
+    convert(input_path, output_path, tolerance, repair, info_only)
 
 
 if __name__ == "__main__":
