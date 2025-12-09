@@ -4,6 +4,8 @@ const fs = require('fs').promises;
 const config = require('../config');
 const logger = require('../utils/logger');
 
+const FREECAD = '/opt/conda/bin/freecadcmd';   // HEADLESS FreeCAD
+
 class ConverterService {
   constructor() {
     this.pythonScript = path.join(config.paths.pythonScripts, 'convert.py');
@@ -15,145 +17,85 @@ class ConverterService {
   async convert(inputPath, outputPath, options = {}) {
     const tolerance = options.tolerance || config.conversion.defaultTolerance;
     const repair = options.repair !== false && config.conversion.repairMesh;
-    
-    // Validate tolerance
+
     if (tolerance < config.conversion.minTolerance || tolerance > config.conversion.maxTolerance) {
-      return {
-        success: false,
-        error: `Tolerance must be between ${config.conversion.minTolerance} and ${config.conversion.maxTolerance}`,
-      };
+      return { success: false, error: `Tolerance must be between ${config.conversion.minTolerance} and ${config.conversion.maxTolerance}` };
     }
-    
-    // Ensure input file exists
+
     try {
       await fs.access(inputPath);
     } catch {
-      return {
-        success: false,
-        error: 'Input file not found',
-      };
+      return { success: false, error: 'Input file not found' };
     }
-    
+
     return new Promise((resolve) => {
       const args = [
         this.pythonScript,
         inputPath,
         outputPath,
         `--tolerance=${tolerance}`,
+        repair ? '--repair' : '--no-repair'
       ];
-      
-      if (repair) {
-        args.push('--repair');
-      } else {
-        args.push('--no-repair');
-      }
-      
-      logger.debug('Running FreeCAD conversion', { args });
-      
-      // Use freecad for headless operation
-      const process = spawn('/opt/conda/bin/freecadcmdcmd', args, {
+
+      const proc = spawn(FREECAD, args, {
         timeout: config.conversion.timeout,
         env: {
           ...process.env,
-          DISPLAY: '', // Ensure headless mode
-        },
+          QT_QPA_PLATFORM: 'offscreen',
+          XDG_RUNTIME_DIR: '/tmp/runtime'
+        }
       });
-      
+
       let stdout = '';
       let stderr = '';
-      
-      process.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      process.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      process.on('close', async (code) => {
+
+      proc.stdout.on('data', d => stdout += d.toString());
+      proc.stderr.on('data', d => stderr += d.toString());
+
+      proc.on('close', code => {
         if (code === 0) {
           try {
-            // Parse JSON output from Python script
             const result = JSON.parse(stdout.trim().split('\n').pop());
             resolve(result);
-          } catch (parseErr) {
+          } catch {
             logger.error('Failed to parse conversion output', { stdout, stderr });
-            resolve({
-              success: false,
-              error: 'Failed to parse conversion result',
-              stdout,
-              stderr,
-            });
+            resolve({ success: false, error: 'Failed to parse conversion result', stdout, stderr });
           }
         } else {
-          logger.error('Conversion process failed', { code, stderr });
-          
-          // Try to extract error from stderr
-          let errorMessage = 'Conversion failed';
-          if (stderr.includes('No module named')) {
-            errorMessage = 'FreeCAD modules not available';
-          } else if (stderr.includes('timeout')) {
-            errorMessage = 'Conversion timed out';
-          } else if (stderr) {
-            errorMessage = stderr.split('\n').filter(Boolean).pop() || errorMessage;
-          }
-          
-          resolve({
-            success: false,
-            error: errorMessage,
-            code,
-            stderr,
-          });
+          resolve({ success: false, error: stderr || 'Conversion failed', code, stderr });
         }
       });
-      
-      process.on('error', (err) => {
-        logger.error('Failed to spawn conversion process', { error: err.message });
-        
-        let errorMessage = err.message;
-        if (err.code === 'ENOENT') {
-          errorMessage = 'FreeCAD (freecad) not found. Please install FreeCAD.';
-        }
-        
-        resolve({
-          success: false,
-          error: errorMessage,
-        });
+
+      proc.on('error', err => {
+        resolve({ success: false, error: err.message });
       });
     });
   }
 
   /**
-   * Get mesh info without converting
+   * Get mesh info
    */
   async getMeshInfo(inputPath) {
-    return new Promise((resolve) => {
-      const args = [
-        this.pythonScript,
-        inputPath,
-        '/dev/null', // Won't be used with --info
-        '--info',
-      ];
-      
-      const process = spawn('/opt/conda/bin/freecadcmdcmd', args, {
-        timeout: 30000, // 30 second timeout for info
+    return new Promise(resolve => {
+      const args = [this.pythonScript, inputPath, '/dev/null', '--info'];
+
+      const proc = spawn(FREECAD, args, {
+        timeout: 30000,
         env: {
           ...process.env,
-          DISPLAY: '',
-        },
+          QT_QPA_PLATFORM: 'offscreen',
+          XDG_RUNTIME_DIR: '/tmp/runtime'
+        }
       });
-      
+
       let stdout = '';
-      
-      process.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      process.on('close', (code) => {
+
+      proc.stdout.on('data', d => stdout += d.toString());
+
+      proc.on('close', code => {
         if (code === 0) {
           try {
-            const result = JSON.parse(stdout.trim().split('\n').pop());
-            resolve(result);
+            resolve(JSON.parse(stdout.trim().split('\n').pop()));
           } catch {
             resolve({ success: false, error: 'Failed to parse mesh info' });
           }
@@ -161,38 +103,37 @@ class ConverterService {
           resolve({ success: false, error: 'Failed to get mesh info' });
         }
       });
-      
-      process.on('error', (err) => {
-        resolve({ success: false, error: err.message });
-      });
+
+      proc.on('error', err => resolve({ success: false, error: err.message }));
     });
   }
 
   /**
-   * Validate that FreeCAD is available
+   * Check FreeCAD availability
    */
   async checkFreecad() {
-    return new Promise((resolve) => {
-      const process = spawn('/opt/conda/bin/freecadcmd', ['--version'], {
+    return new Promise(resolve => {
+      const proc = spawn(FREECAD, ['--version'], {
         timeout: 10000,
+        env: {
+          ...process.env,
+          QT_QPA_PLATFORM: 'offscreen',
+          XDG_RUNTIME_DIR: '/tmp/runtime'
+        }
       });
-      
+
       let stdout = '';
-      
-      process.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      process.on('close', (code) => {
+
+      proc.stdout.on('data', d => stdout += d.toString());
+
+      proc.on('close', code => {
         resolve({
           available: code === 0,
-          version: stdout.trim(),
+          version: stdout.trim() || null
         });
       });
-      
-      process.on('error', () => {
-        resolve({ available: false });
-      });
+
+      proc.on('error', () => resolve({ available: false }));
     });
   }
 }
