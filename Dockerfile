@@ -53,4 +53,4 @@ RUN mkdir -p uploads converted logs \
 EXPOSE 3000 3001
 
 # Run with micromamba environment activated
-CMD ["sh", "-c", "eval \"$(micromamba shell hook --shell bash)\" && micromamba activate base && node src/server.js"]
+CMD ["/bin/bash", "-c", "micromamba run -n base node src/server.js"]
