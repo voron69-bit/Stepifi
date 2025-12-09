@@ -51,7 +51,7 @@ class ConverterService {
       logger.debug('Running FreeCAD conversion', { args });
       
       // Use freecad for headless operation
-      const process = spawn('/opt/conda/bin/freecad', args, {
+      const process = spawn('/opt/conda/bin/freecadcmdcmd', args, {
         timeout: config.conversion.timeout,
         env: {
           ...process.env,
@@ -135,7 +135,7 @@ class ConverterService {
         '--info',
       ];
       
-      const process = spawn('/opt/conda/bin/freecad', args, {
+      const process = spawn('/opt/conda/bin/freecadcmdcmd', args, {
         timeout: 30000, // 30 second timeout for info
         env: {
           ...process.env,
@@ -173,7 +173,7 @@ class ConverterService {
    */
   async checkFreecad() {
     return new Promise((resolve) => {
-      const process = spawn('/opt/conda/bin/freecad', ['--version'], {
+      const process = spawn('/opt/conda/bin/freecadcmd', ['--version'], {
         timeout: 10000,
       });
       
