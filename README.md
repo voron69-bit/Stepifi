@@ -69,7 +69,7 @@ Redis connected
 Server running on port 3000
 ```
 
-Then open your browser to `http://localhost:3000`
+Then open your browser to `http://localhost:3169`
 
 ---
 
@@ -97,7 +97,7 @@ The Docker setup consists of two containers managed by Docker Compose:
 
 | Port | Service | URL |
 |------|---------|-----|
-| `3000` | Main web interface | `http://localhost:3000` |
+| `3000` | Main web interface | `http://localhost:3169` |
 | `3001` | Job queue dashboard | `http://localhost:3001/admin/queues` |
 
 ### Persistent Volumes
@@ -114,7 +114,7 @@ The Docker setup consists of two containers managed by Docker Compose:
 
 ### Step 1: Open the Web Interface
 
-Navigate to `http://localhost:3000` (or your server's IP/domain).
+Navigate to `http://localhost:3169` (or your server's IP/domain).
 
 ### Step 2: Upload an STL File
 
@@ -176,7 +176,7 @@ Click the **heartbeat icon** (💓) in the top-right header to verify system sta
 
 Or via API:
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3169/health
 ```
 
 **Response:**
@@ -247,7 +247,7 @@ ports:
 
 ### Convert a File
 ```bash
-curl -X POST http://localhost:3000/api/convert \
+curl -X POST http://localhost:3169/api/convert \
   -F "stlFile=@model.stl" \
   -F "tolerance=0.01" \
   -F "repair=true"
@@ -265,7 +265,7 @@ curl -X POST http://localhost:3000/api/convert \
 
 ### Check Job Status
 ```bash
-curl http://localhost:3000/api/job/{jobId}
+curl http://localhost:3169/api/job/{jobId}
 ```
 
 **Response:**
@@ -289,12 +289,12 @@ curl http://localhost:3000/api/job/{jobId}
 
 ### Download Converted File
 ```bash
-curl -O http://localhost:3000/api/download/{jobId}
+curl -O http://localhost:3169/api/download/{jobId}
 ```
 
 ### Cancel/Delete a Job
 ```bash
-curl -X DELETE http://localhost:3000/api/job/{jobId}
+curl -X DELETE http://localhost:3169/api/job/{jobId}
 ```
 
 **Response:**
@@ -461,7 +461,7 @@ server {
     ssl_certificate_key /path/to/key.pem;
     
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3169;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
