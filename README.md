@@ -3,6 +3,8 @@
 </p>
 
 A self-hosted web application that converts STL mesh files to STEP (ISO 10303) solid format. Built for makers, engineers, and 3D printing enthusiasts who need to work with CAD software that requires STEP files.
+## Support / Donations  
+[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png" alt="Buy Me A Coffee" width="150" />](https://buymeacoffee.com/voron69.bit)
 
 ---
 
