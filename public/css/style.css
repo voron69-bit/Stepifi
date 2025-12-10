@@ -227,8 +227,63 @@ body {
 }
 
 .tooltip {
+  position: relative;
   cursor: help;
   color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.2s ease;
+}
+
+.tooltip:hover {
+  color: var(--accent-primary);
+}
+
+.tooltip::before {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: normal;
+  max-width: 250px;
+  width: max-content;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--bg-tertiary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+}
+
+.tooltip:hover::before,
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+.tooltip:hover::before {
+  transform: translateX(-50%) translateY(-4px);
 }
 
 .range-input {
