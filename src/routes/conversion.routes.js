@@ -20,7 +20,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const jobId = uuidv4();
     req.jobId = jobId;
-    cb(null, `${jobId}.stl`);
+    // Preserve original extension (.stl or .3mf)
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${jobId}${ext}`);
   },
 });
 
@@ -32,7 +34,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!config.upload.allowedExtensions.includes(ext)) {
-      return cb(new Error('Only STL files are allowed'));
+      return cb(new Error('Only STL and 3MF files are allowed'));
     }
     cb(null, true);
   },
@@ -57,11 +59,11 @@ const handleUploadError = (err, req, res, next) => {
 
 /**
  * POST /api/convert
- * Upload and convert STL file
+ * Upload and convert STL/3MF file
  */
 router.post(
   '/convert',
-  upload.single('stlFile'),
+  upload.single('meshFile'),
   handleUploadError,
   [
     body('tolerance')
@@ -92,11 +94,12 @@ router.post(
       const jobId = req.jobId;
       const inputPath = req.file.path;
       const outputPath = fileService.getConvertedPath(`${jobId}.step`);
-      
+
       const options = {
         tolerance: parseFloat(req.body.tolerance) || config.conversion.defaultTolerance,
         repair: req.body.repair !== 'false',
         originalFilename: req.file.originalname,
+        inputFormat: path.extname(req.file.originalname).toLowerCase().substring(1), // 'stl' or '3mf'
       };
 
       // Create job record
@@ -107,6 +110,7 @@ router.post(
         progress: 0,
         originalFilename: req.file.originalname,
         fileSize: req.file.size,
+        inputFormat: options.inputFormat,
         options,
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
@@ -120,6 +124,7 @@ router.post(
       logger.info(`Conversion job created: ${jobId}`, {
         filename: req.file.originalname,
         size: req.file.size,
+        format: options.inputFormat,
         tolerance: options.tolerance,
       });
 
@@ -132,12 +137,12 @@ router.post(
 
     } catch (err) {
       logger.error('Convert endpoint error:', err);
-      
+
       // Clean up on error
       if (req.file) {
         await fileService.deleteFile(req.file.path);
       }
-      
+
       res.status(500).json({ success: false, error: 'Failed to process upload' });
     }
   }
@@ -188,6 +193,26 @@ router.get(
 );
 
 /**
+ * GET /api/jobs
+ * Get all active jobs
+ */
+router.get('/jobs', async (req, res) => {
+  try {
+    const jobs = await redisService.getAllJobs();
+
+    res.json({
+      success: true,
+      jobs: jobs,
+      count: jobs.length,
+    });
+
+  } catch (err) {
+    logger.error('Get all jobs error:', err);
+    res.status(500).json({ success: false, error: 'Failed to get jobs' });
+  }
+});
+
+/**
  * GET /api/download/:jobId
  * Download converted STEP file
  */
@@ -221,7 +246,7 @@ router.get(
       }
 
       const stepPath = fileService.getConvertedPath(`${jobId}.step`);
-      
+
       if (!(await fileService.fileExists(stepPath))) {
         return res.status(404).json({
           success: false,
@@ -231,7 +256,7 @@ router.get(
 
       // Generate download filename
       const originalName = job.originalFilename || 'converted';
-      const downloadName = originalName.replace(/\.stl$/i, '') + '.step';
+      const downloadName = originalName.replace(/\.(stl|3mf)$/i, '') + '.step';
 
       logger.info(`File download: ${jobId}`, { downloadName });
 
@@ -246,11 +271,11 @@ router.get(
 
 /**
  * POST /api/analyze
- * Analyze STL file without converting
+ * Analyze STL/3MF file without converting
  */
 router.post(
   '/analyze',
-  upload.single('stlFile'),
+  upload.single('meshFile'),
   handleUploadError,
   async (req, res) => {
     try {
@@ -258,7 +283,8 @@ router.post(
         return res.status(400).json({ success: false, error: 'No file uploaded' });
       }
 
-      const result = await converterService.getMeshInfo(req.file.path);
+      const inputFormat = path.extname(req.file.originalname).toLowerCase().substring(1);
+      const result = await converterService.getMeshInfo(req.file.path, inputFormat);
 
       // Clean up uploaded file
       await fileService.deleteFile(req.file.path);
@@ -268,6 +294,7 @@ router.post(
           success: true,
           filename: req.file.originalname,
           fileSize: req.file.size,
+          inputFormat: inputFormat,
           meshInfo: result.mesh_info_before,
         });
       } else {
@@ -279,11 +306,11 @@ router.post(
 
     } catch (err) {
       logger.error('Analyze error:', err);
-      
+
       if (req.file) {
         await fileService.deleteFile(req.file.path);
       }
-      
+
       res.status(500).json({ success: false, error: 'Analysis failed' });
     }
   }
@@ -317,7 +344,7 @@ router.delete(
 
       // Delete files
       await fileService.deleteJobFiles(jobId);
-      
+
       // Delete from Redis
       await redisService.deleteJob(jobId);
 
