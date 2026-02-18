@@ -84,6 +84,7 @@ class QueueService {
       }
     }, { 
       connection,
+      concurrency: config.jobs.maxConcurrent,
       removeOnComplete: { count: 0 },
       removeOnFail: { count: 10 }
     });
