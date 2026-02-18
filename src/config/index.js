@@ -56,7 +56,7 @@ module.exports = {
   jobs: {
     ttlHours: parseInt(process.env.JOB_TTL_HOURS, 10) || 24,
     cleanupCron: process.env.CLEANUP_CRON || '*/15 * * * *',
-    maxConcurrent: 1,
+    maxConcurrent: parseInt(process.env.MAX_CONCURRENT_JOBS, 10) || 2,
     maxRetries: parseInt(process.env.MAX_RETRIES, 10) || 2,
   },
 
